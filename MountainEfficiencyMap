@@ -1,0 +1,100 @@
+GrandData=as.data.frame(AliceGrandData) #--the "KANG" block was repeated twice---#
+
+mountains=unique(GrandData$Code)
+mountains
+climb.type=unique(GrandData$Type)
+climb.type
+
+#--functions that return the efficiency percentage over time for a mountain-climbingtype combination--#
+
+men.efficiency<-function(m,t){
+  d=subset(GrandData, GrandData$Code==m & GrandData$Type==t)
+  men.eff.perc=d$msuccpct-d$mdeadpct
+  d1=data.frame(d$label,d$mmemcnt,men.eff.perc/100)
+  colnames(d1)<-c("Epoch","SampleSize","Efficiency")
+  return(d1)
+}
+
+women.efficiency<-function(m,t){
+  d=subset(GrandData, GrandData$Code==m & GrandData$Type==t)
+  women.eff.perc=d$fsuccpct-d$fdeadpct
+  d1=data.frame(d$label,d$fmemcnt,women.eff.perc/100)
+  colnames(d1)<-c("Epoch","SampleSize","Efficiency")
+  return(d1)
+}
+
+men.efficiency(mountains[1],climb.type[1]) #---typical usage--#
+women.efficiency(mountains[1],climb.type[1])
+
+#---Network analyses---#
+
+#--with oxygen--#
+men.summary.oxygen<-matrix(0,15,length(mountains))
+for(j in 1:length(mountains))
+{
+  men.summary.oxygen[,j]=men.efficiency(mountains[j],climb.type[1])$Efficiency
+}
+men.summary.oxygen=data.frame(cbind(men.efficiency(mountains[1],climb.type[1])$Epoch,men.summary.oxygen))
+colnames(men.summary.oxygen)<-c("Epoch",mountains)
+men.summary.oxygen
+
+women.summary.oxygen<-matrix(0,15,length(mountains))
+for(j in 1:length(mountains))
+{
+  women.summary.oxygen[,j]=women.efficiency(mountains[j],climb.type[1])$Efficiency
+}
+women.summary.oxygen=data.frame(cbind(women.efficiency(mountains[1],climb.type[1])$Epoch,women.summary.oxygen))
+colnames(women.summary.oxygen)<-c("Epoch",mountains)
+women.summary.oxygen
+
+#--without oxygen--#
+men.summary.nooxygen<-matrix(0,15,length(mountains))
+for(j in 1:length(mountains))
+{
+  men.summary.nooxygen[,j]=men.efficiency(mountains[j],climb.type[2])$Efficiency
+}
+men.summary.nooxygen=data.frame(cbind(men.efficiency(mountains[1],climb.type[2])$Epoch,men.summary.nooxygen))
+colnames(men.summary.nooxygen)<-c("Epoch",mountains)
+men.summary.nooxygen
+
+women.summary.nooxygen<-matrix(0,15,length(mountains))
+for(j in 1:length(mountains))
+{
+  women.summary.nooxygen[,j]=women.efficiency(mountains[j],climb.type[2])$Efficiency
+}
+women.summary.nooxygen=data.frame(cbind(women.efficiency(mountains[1],climb.type[2])$Epoch,women.summary.nooxygen))
+colnames(women.summary.nooxygen)<-c("Epoch",mountains)
+women.summary.nooxygen
+
+############
+category1=c(8091,8051,8188,8167,8849,8586,8516,8382,8485,8163)
+category2=c(7525,7583,7135,7350,7462,7338,7362,7177,7138,7349)
+category3=c(6893,6859,6045,6600,6043,6148,6000,6087,6450,6739)
+
+altitudes=c(category1,category2,category3)
+nodes=data.frame(id=mountains,label=mountains,shape=rep("triangle",length(mountains)),
+                 group=c(rep(">8K",length(category1)),rep("7-8K",length(category2)),rep("6-7K",length(category3))),
+                 value=altitudes,
+                 colour=c(rep("blue",length(category1)),rep("red",length(category2)),rep("green",length(category3))),
+                 shadow=rep("TRUE",length(mountains)))
+
+
+adjMat=as.matrix(dist(t(men.summary.oxygen[15,][2:ncol(men.summary.oxygen)]),diag = TRUE, upper = TRUE)) #--the weighted adjacency matrix--#
+
+#--library(igraph)--#
+g <- graph.adjacency(adjMat, mode="undirected", weighted=TRUE)
+#plot(g)
+b=as_edgelist(g, names = TRUE)
+e.list=cbind( get.edgelist(g) , round( E(g)$weight, 4 ))
+edges=data.frame(from=e.list[,1],to=e.list[,2],length=as.numeric(e.list[,3])*1000)
+
+#---library(visnetwork)---#
+visNetwork(nodes, edges) %>% visLegend()
+
+#--We may also create interactive dashboards---#
+visNetwork(nodes, edges) %>% 
+  visOptions(highlightNearest = TRUE, nodesIdSelection = TRUE)
+
+# or add a selection on another column #
+visNetwork(nodes, edges) %>% 
+  visOptions(selectedBy = "group")
